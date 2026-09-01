@@ -1,33 +1,31 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { WhatsappService } from './whatsapp.service';
+
 @Controller('whatsapp')
 export class WhatsappController {
   constructor(private readonly whatsappService: WhatsappService) {}
 
-  // READ: Any authenticated user with NOTIFICATION_SETUP.LISTING can check status/QR
   @Get('status')
-  getStatus() {
-    return this.whatsappService.getStatus();
+  getStatus(@Query('sessionId') sessionId: string) {
+    if (!sessionId) {
+      return { success: false, message: 'sessionId is required as a query parameter: ?sessionId=...' };
+    }
+    return this.whatsappService.getStatus(sessionId);
   }
 
-  @Get('qr')
-  getQR() {
-    return this.whatsappService.getQR();
-  }
-
-  // WRITE: Only users with NOTIFICATION_SETUP.WHATSAPP_MANAGE (Admin only by default)
-  @Post('refresh-qr')
-  refreshQR() {
-    return this.whatsappService.refreshQR();
-  }
-
-  @Post('reset')
-  reset() {
-    return this.whatsappService.reset();
+  @Post('pair')
+  requestPairingCode(@Body() body: { sessionId: string; phoneNumber: string }) {
+    if (!body.sessionId || !body.phoneNumber) {
+      return { success: false, message: 'sessionId and phoneNumber are required in the body.' };
+    }
+    return this.whatsappService.requestPairingCode(body.sessionId, body.phoneNumber);
   }
 
   @Post('logout')
-  logout() {
-    return this.whatsappService.logout();
+  logout(@Body('sessionId') sessionId: string) {
+    if (!sessionId) {
+      return { success: false, message: 'sessionId is required in the body.' };
+    }
+    return this.whatsappService.logout(sessionId);
   }
 }
