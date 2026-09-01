@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WhatsappAuth } from './entities/whatsapp-auth.entity';
@@ -405,6 +406,17 @@ export class WhatsappService implements OnModuleDestroy {
       return { success: true, message: 'Logged out successfully. New QR code will be generated automatically.' };
     }
     return { success: false, message: 'Not connected.' };
+  }
+
+  // Cron job to prevent Render from sleeping
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async handleKeepAlive() {
+    try {
+      this.logger.log('Pinging Render to keep service awake...');
+      await fetch('https://nestreply-backend.onrender.com/whatsapp/status');
+    } catch (error) {
+      this.logger.error('Failed to ping Render', (error as Error).message);
+    }
   }
 
   async refreshQR() {

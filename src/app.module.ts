@@ -3,10 +3,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ScheduleModule } from '@nestjs/schedule';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     WhatsappModule,
     ConfigModule.forRoot({
       isGlobal: true,
