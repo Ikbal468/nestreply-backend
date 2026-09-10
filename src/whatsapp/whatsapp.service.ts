@@ -14,7 +14,8 @@ import pino from 'pino';
 const TARGET_NUMBERS = ['60122341307', '60183894638', '60103871227'];
 const AUTO_REPLY_TEXT = "🤖 *Iqbal's WhatsApp Bot* 🤖\n\nHello there! I am Iqbal's custom-built automated assistant. Iqbal is currently busy (likely gaming or working) and cannot come to his phone right now.\n\nYour message has been safely received. He will reply to you as soon as he is free, so please wait for a while and kindly do not spam messages!";
 const DEBOUNCE_DELAY_MS = 5000;
-const HUMAN_MUTE_DURATION_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
+const HUMAN_MUTE_DURATION_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+const BOT_COOLDOWN_DURATION_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 // ============================================================================
 
 @Injectable()
@@ -28,6 +29,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private connectedNumbers = new Map<string, string>();
   private debounceTimers = new Map<string, NodeJS.Timeout>();
   private humanMuteTimers = new Map<string, NodeJS.Timeout>();
+  private botCooldownTimers = new Map<string, NodeJS.Timeout>();
   private botMessageIds = new Set<string>();
 
   private normalizeNumber(input: string) {
@@ -228,7 +230,7 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
                return;
             }
 
-            this.logger.log(`[HUMAN MUTE][${sessionId}] You manually replied to ${senderNumber}. Muting bot for 30 minutes!`);
+            this.logger.log(`[HUMAN MUTE][${sessionId}] You manually replied to ${senderNumber}. Muting bot for 1 hour!`);
             
             if (this.humanMuteTimers.has(timerKey)) {
               clearTimeout(this.humanMuteTimers.get(timerKey)!);
@@ -237,9 +239,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               clearTimeout(this.debounceTimers.get(timerKey)!);
               this.debounceTimers.delete(timerKey);
             }
+            if (this.botCooldownTimers.has(timerKey)) {
+              clearTimeout(this.botCooldownTimers.get(timerKey)!);
+              this.botCooldownTimers.delete(timerKey);
+            }
 
             const muteTimer = setTimeout(() => {
-              this.logger.log(`[HUMAN MUTE][${sessionId}] 30 minutes have passed. Bot is unmuted for ${senderNumber}.`);
+              this.logger.log(`[HUMAN MUTE][${sessionId}] 1 hour has passed. Bot is unmuted for ${senderNumber}.`);
               this.humanMuteTimers.delete(timerKey);
             }, HUMAN_MUTE_DURATION_MS);
 
@@ -248,7 +254,12 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           }
 
           if (this.humanMuteTimers.has(timerKey)) {
-            this.logger.log(`[HUMAN MUTE][${sessionId}] Ignoring message from ${senderNumber}. Mute active.`);
+            this.logger.log(`[HUMAN MUTE][${sessionId}] Ignoring message from ${senderNumber}. Human mute active.`);
+            return;
+          }
+
+          if (this.botCooldownTimers.has(timerKey)) {
+            this.logger.log(`[BOT COOLDOWN][${sessionId}] Ignoring message from ${senderNumber}. Bot cooldown active.`);
             return;
           }
 
@@ -276,6 +287,13 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
               if (sentMsg?.key?.id) {
                 this.botMessageIds.add(sentMsg.key.id);
               }
+
+              // Set the bot cooldown timer after sending
+              const cooldownTimer = setTimeout(() => {
+                this.logger.log(`[BOT COOLDOWN][${sessionId}] 1 hour has passed. Bot cooldown finished for ${senderNumber}.`);
+                this.botCooldownTimers.delete(timerKey);
+              }, BOT_COOLDOWN_DURATION_MS);
+              this.botCooldownTimers.set(timerKey, cooldownTimer);
             }
             this.debounceTimers.delete(timerKey);
           }, delayMs);
