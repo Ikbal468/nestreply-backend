@@ -32,6 +32,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private botCooldownTimers = new Map<string, NodeJS.Timeout>();
   private botMessageIds = new Set<string>();
 
+  // Anti-Delete Message Cache (stores recent messages)
+  private messageCache = new Map<string, any>();
+
   private normalizeNumber(input: string) {
     if (!input) return '';
     const digits = String(input).replace(/\D/g, '');
@@ -196,6 +199,47 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       const msg = m.messages[0];
       try {
         if (m.type === 'notify') {
+          // --- ANTI-DELETE LOGIC ---
+          // Save every incoming message to cache (only keep last 500 to avoid memory leak)
+          if (msg.key && msg.key.id) {
+            this.messageCache.set(msg.key.id, msg);
+            if (this.messageCache.size > 500) {
+              const firstKey = this.messageCache.keys().next().value;
+              if (firstKey) this.messageCache.delete(firstKey);
+            }
+          }
+          
+          // Check if this is a delete message (protocolMessage type 0 = REVOKE)
+          const isRevoke = msg.message?.protocolMessage?.type === 0 || msg.message?.protocolMessage?.type === 'REVOKE';
+          if (isRevoke) {
+             const deletedMsgId = msg.message.protocolMessage.key.id;
+             const originalMsg = this.messageCache.get(deletedMsgId);
+             
+             if (originalMsg && msg.key.remoteJid) {
+                // Ignore if it was from me
+                if (originalMsg.key.fromMe) return;
+
+                // Extract text from original message if it exists
+                let deletedText: string | null = null;
+                if (originalMsg.message?.conversation) deletedText = originalMsg.message.conversation as string;
+                else if (originalMsg.message?.extendedTextMessage?.text) deletedText = originalMsg.message.extendedTextMessage.text as string;
+                
+                const activeSock = this.sockets.get(sessionId);
+                if (activeSock) {
+                   const callOutText = `🤖 *Iqbal's WhatsApp Bot* 🤖\n\n_System detecting a deleted message..._\n\n${deletedText ? `*Recovered Message:*\n${deletedText}` : '*Recovered Media:*\n(Forwarding below)'}`;
+                   
+                   await activeSock.sendMessage(msg.key.remoteJid, { text: callOutText });
+                   
+                   if (!deletedText) {
+                      // It was media or something else, try to forward the original message
+                      await activeSock.sendMessage(msg.key.remoteJid, { forward: originalMsg });
+                   }
+                }
+             }
+             return; // Stop processing this as a normal message
+          }
+          // --- END ANTI-DELETE LOGIC ---
+
           if (msg.key.remoteJid?.endsWith('@g.us') || msg.key.remoteJid === 'status@broadcast') return;
 
           const remoteJid = msg.key.remoteJid;
