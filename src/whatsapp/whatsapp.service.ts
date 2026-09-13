@@ -199,6 +199,9 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       const msg = m.messages[0];
       try {
         if (m.type === 'notify') {
+          // Ignore group messages and status broadcasts completely
+          if (msg.key.remoteJid?.endsWith('@g.us') || msg.key.remoteJid === 'status@broadcast') return;
+
           // --- ANTI-DELETE LOGIC ---
           // Save every incoming message to cache (only keep last 500 to avoid memory leak)
           if (msg.key && msg.key.id) {
@@ -240,7 +243,6 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
           }
           // --- END ANTI-DELETE LOGIC ---
 
-          if (msg.key.remoteJid?.endsWith('@g.us') || msg.key.remoteJid === 'status@broadcast') return;
 
           const remoteJid = msg.key.remoteJid;
           if (!remoteJid) return;
