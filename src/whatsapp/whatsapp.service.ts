@@ -11,7 +11,7 @@ import pino from 'pino';
 // 🤖 BOT CONFIGURATION 🤖
 // Modify these variables to change how the bot behaves.
 // ============================================================================
-const TARGET_NUMBERS = ['60122341307', '60183894638', '60103871227'];
+const TARGET_NUMBERS = ['60183894638'];
 const AUTO_REPLY_TEXT = "🤖 *Iqbal's WhatsApp Bot* 🤖\n\nHello there! I am Iqbal's custom-built automated assistant. Iqbal is currently busy (likely gaming or working) and cannot come to his phone right now.\n\nYour message has been safely received. He will reply to you as soon as he is free, so please wait for a while and kindly do not spam messages!";
 const DEBOUNCE_DELAY_MS = 5000;
 const HUMAN_MUTE_DURATION_MS = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -242,6 +242,41 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
              return; // Stop processing this as a normal message
           }
           // --- END ANTI-DELETE LOGIC ---
+          
+          // --- ANTI-VIEW-ONCE LOGIC ---
+          // DEBUG: Log message structure safely using console.dir for Protobufs
+          if (!msg.message?.conversation && !msg.message?.extendedTextMessage) {
+              console.log("[FULL MSG DUMP]");
+              console.dir(msg, { depth: null });
+          }
+
+          let actualMessage = msg.message;
+          if (actualMessage?.ephemeralMessage) {
+              actualMessage = actualMessage.ephemeralMessage.message;
+          }
+
+          const innerMessage = actualMessage?.viewOnceMessage?.message || actualMessage?.viewOnceMessageV2?.message || actualMessage?.viewOnceMessageV2Extension?.message;
+          
+          if (innerMessage && msg.key.remoteJid && !msg.key.fromMe) {
+              this.logger.log(`[ANTI-VIEW-ONCE] Detected View Once message from ${msg.key.remoteJid}`);
+              const activeSock = this.sockets.get(sessionId);
+              if (activeSock) {
+                  // Strip the viewOnce flag
+                  if (innerMessage.imageMessage) innerMessage.imageMessage.viewOnce = false;
+                  if (innerMessage.videoMessage) innerMessage.videoMessage.viewOnce = false;
+                  if (innerMessage.audioMessage) innerMessage.audioMessage.viewOnce = false;
+
+                  // Overwrite the original message wrapper with the un-wrapped inner message
+                  msg.message = innerMessage;
+
+                  const callOutText = `🤖 *Iqbal's WhatsApp Bot* 🤖\n\n_Nice try with the View Once! I saved a permanent copy for Iqbal._ 😎👇`;
+                  await activeSock.sendMessage(msg.key.remoteJid, { text: callOutText });
+                  
+                  // Forward the unwrapped message
+                  await activeSock.sendMessage(msg.key.remoteJid, { forward: msg });
+              }
+          }
+          // --- END ANTI-VIEW-ONCE LOGIC ---
 
 
           const remoteJid = msg.key.remoteJid;
