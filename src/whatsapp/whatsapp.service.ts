@@ -11,7 +11,7 @@ import pino from 'pino';
 // 🤖 BOT CONFIGURATION 🤖
 // Modify these variables to change how the bot behaves.
 // ============================================================================
-const TARGET_NUMBERS = ['60183894638', '60196581307'];
+const TARGET_NUMBERS = ['60183894638', '601170000320', '60103871227'];
 const AUTO_REPLY_TEXT = "🤖 *Iqbal's WhatsApp Bot* 🤖\n\nHello there! I am Iqbal's custom-built automated assistant. Iqbal is currently busy (likely gaming or working) and cannot come to his phone right now.\n\nYour message has been safely received. He will reply to you as soon as he is free, so please wait for a while and kindly do not spam messages!";
 const DEBOUNCE_DELAY_MS = 5000;
 const HUMAN_MUTE_DURATION_MS = 60 * 60 * 1000; // 1 hour in milliseconds
