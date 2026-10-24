@@ -161,6 +161,17 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
       printQRInTerminal: false,
       markOnlineOnConnect: false,
       logger: pino({ level: 'silent' }) as any,
+      getMessage: async (key: any) => {
+        if (key && key.id) {
+          const cached = this.messageCache.get(key.id);
+          if (cached && cached.message) {
+            return cached.message;
+          }
+        }
+        return undefined;
+      },
+      retryRequestDelayMs: 250,
+      maxMsgRetryCount: 5,
     });
 
     this.sockets.set(sessionId, sock);
